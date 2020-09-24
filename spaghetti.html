@@ -1,0 +1,155 @@
+<html>
+<head>
+    <title>Box2dWeb example</title>
+    <meta charset="UTF-8">
+</head>
+<body onload="init();">
+    <h1>Spaghetti Sort</h1>
+    <p id="input">Unsorted data: </p>
+    <canvas id="canvas" width="600" height="400"></canvas>
+    <p id="output">Sorted data: </p>
+</body>
+<script type="text/javascript" src="Box2dWeb-2.1.a.3.min.js"></script>
+<script type="text/javascript">
+    var world;
+
+    var b2Vec2 = Box2D.Common.Math.b2Vec2
+       , b2BodyDef = Box2D.Dynamics.b2BodyDef
+       , b2Body = Box2D.Dynamics.b2Body
+       , b2FixtureDef = Box2D.Dynamics.b2FixtureDef
+       , b2Fixture = Box2D.Dynamics.b2Fixture
+       , b2World = Box2D.Dynamics.b2World
+       , b2MassData = Box2D.Collision.Shapes.b2MassData
+       , b2PolygonShape = Box2D.Collision.Shapes.b2PolygonShape
+       , b2CircleShape = Box2D.Collision.Shapes.b2CircleShape
+       , b2DebugDraw = Box2D.Dynamics.b2DebugDraw
+    ;
+
+    var collider;
+    var colliderReleased = false;
+
+    function init() {
+
+        world = new b2World(
+              new b2Vec2(0, 10)    //gravity
+           , true                 //allow sleep
+        );
+
+        var fixDef = new b2FixtureDef;
+        fixDef.density = 1.0;
+        fixDef.friction = 0.5;
+        fixDef.restitution = 0.3;
+
+        var bodyDef = new b2BodyDef;
+
+        //create ground
+        bodyDef.type = b2Body.b2_staticBody;
+        bodyDef.position.x = 9;
+        bodyDef.position.y = 13;
+        bodyDef.allowSleep = true;
+        fixDef.shape = new b2PolygonShape;
+        fixDef.shape.SetAsBox(10, 0.2);
+        world.CreateBody(bodyDef).CreateFixture(fixDef);
+
+        // data to sort
+        var dataSize = 30;
+        var data = [];
+        var sortedData = [];
+
+        for (var i = 0; i < dataSize; i++) {
+            data[i] = Math.round(Math.random() * 100);
+            document.getElementById("input").innerHTML += " " + data[i];
+        }
+        data.push(100);
+
+        var xScale = 15 / dataSize;
+        var yScale = 0.05;
+
+        // create spaghettis
+        bodyDef.type = b2Body.b2_dynamicBody;
+        bodyDef.fixedRotation = true;
+        for (var i = 0; i < data.length; i++) {
+            fixDef.shape = new b2PolygonShape;
+            var l = data[i] * yScale + 0.1;
+            fixDef.shape.SetAsBox(xScale / 2 - 0.1, l);
+            bodyDef.position.x = 1 + i * xScale;
+            bodyDef.position.y = 2 + l;
+            bodyDef.userData = data[i];
+            world.CreateBody(bodyDef).CreateFixture(fixDef);
+        }
+
+        // create collider
+        fixDef.shape = new b2PolygonShape;
+        fixDef.shape.SetAsBox(10, 0.1);
+        bodyDef.fixedRotation = true;
+        bodyDef.type = b2Body.b2_staticBody;
+        bodyDef.position.x = 9;
+        bodyDef.position.y = 1;
+        bodyDef.userData = "Collider";
+        collider = world.CreateBody(bodyDef);
+        collider.CreateFixture(fixDef);
+
+        // catch collisions
+        var b2Listener = Box2D.Dynamics.b2ContactListener;
+        var listener = new b2Listener;
+
+        listener.BeginContact = function (contact) {
+            var b1 = contact.GetFixtureA().GetBody();
+            if (b1.GetUserData() == "Collider") {
+                var b2 = contact.GetFixtureB().GetBody();
+                if (b2.GetUserData() > 0) {
+                    destroy_list.push(b2);
+                    sortedData.push(b2.GetUserData());
+                    document.getElementById("output").innerHTML += " " + b2.GetUserData();
+                }
+            }
+        }
+
+        world.SetContactListener(listener);
+
+        //setup debug draw
+        var debugDraw = new b2DebugDraw();
+        debugDraw.SetSprite(document.getElementById("canvas").getContext("2d"));
+        debugDraw.SetDrawScale(30.0);
+        debugDraw.SetFillAlpha(0.3);
+        debugDraw.SetLineThickness(1.0);
+        debugDraw.SetFlags(b2DebugDraw.e_shapeBit | b2DebugDraw.e_jointBit);
+        world.SetDebugDraw(debugDraw);
+
+        window.setInterval(update, 1000 / 60);
+    };
+
+    var destroy_list = [];
+
+    function update() {
+        while (destroy_list.length > 0) {
+            world.DestroyBody(destroy_list.shift());
+        }
+
+        // check if collider can be released
+        if (!colliderReleased) {
+            var anyAwake = false;
+            for (var b = world.GetBodyList() ; b; b = b.GetNext()) {
+                if (b.GetType() == b2Body.b2_dynamicBody && b.IsAwake()) {
+                    anyAwake = true;
+                }
+            }
+            if (!anyAwake) {
+                collider.SetType (b2Body.b2_dynamicBody);
+                colliderReleased = true;
+            }
+        }
+
+        world.Step(
+              1 / 60   //frame-rate
+           , 10       //velocity iterations
+           , 10       //position iterations
+        );
+        world.DrawDebugData();
+        world.ClearForces();
+    };
+
+</script>
+
+
+</html>
